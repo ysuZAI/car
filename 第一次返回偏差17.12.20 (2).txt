@@ -1,0 +1,67 @@
+double a,             //存放连续两次偏差值
+       pwm;             //两电机差速项
+typedef struct PID {
+        double  SetPoint;           //  设定目标 Desired Value
+        double  Proportion;         //  比例常数 Proportional Const
+        double  Integral;           //  积分常数 Integral Const
+        double  Derivative;         //  微分常数 Derivative Const
+        double  LastError;          //  Error[-1]
+        double  PrevError;          //  Error[-2]
+        double  SumError;           //  Sums of Errors
+} PID;
+PID pidn;
+void PIT0_IRQHandler(void);
+double PIDCalc( PID *pp, double NextPoint );
+
+void main()
+{
+
+  ftm_pwm_init(FTM0,FTM_CH0,500,300);    //设置左轮电机初始占空比
+  ftm_pwm_init(FTM0,FTM_CH1,500,300);    //设置右轮初始占空比
+  pit_init_ms(PIT0, 5);            //设置定时器中断
+  set_vector_handler(PIT0_VECTORn ,PIT0_IRQHandler);     //设置PIT0的中断服务函数为 PIT0_IRQHandler
+  enable_irq (PIT0_IRQn);
+  pidn.Proportion=5;             //设置比例项系数
+  pidn.Derivative=5;
+  while(1)
+  {
+
+  }
+
+
+}
+void PIT0_IRQHandler(void)
+{
+  if(PIT_TFLG(PIT0) == 1 )
+  {
+    a=piancha();
+    pidn.SetPoint=a;
+    pwm=PIDCalc(&pidn,a);
+    if(a>0)
+    {
+    ftm_pwm_duty(FTM0,FTM_CH0,300-pwm);
+    ftm_pwm_duty(FTM0,FTM_CH1,300+pwm);
+    }
+    if(a<0)
+    {
+    ftm_pwm_duty(FTM0,FTM_CH0,300+pwm);
+    ftm_pwm_duty(FTM0,FTM_CH1,300-pwm);
+    }
+    PIT_Flag_Clear(PIT0);
+
+  }
+}
+
+double PIDCalc( PID *pp, double NextPoint )
+{
+   double  dError,            Error;
+        Error = pp->SetPoint -  NextPoint;          // 偏差
+        pp->SumError += Error;                      // 积分
+        dError = pp->LastError - pp->PrevError;     // 当前微分
+        pp->PrevError = pp->LastError;
+        pp->LastError = Error;
+        return (pp->Proportion * Error
+//           +   pp->Integral * pp->SumError
+                + pp->Derivative * dError
+                );
+}
